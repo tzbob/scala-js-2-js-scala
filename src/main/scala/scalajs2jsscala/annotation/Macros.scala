@@ -24,22 +24,32 @@ private object JsProxyMacro {
         case Ident(typeName: TypeName) => typeName.toTermName
         case AppliedTypeTree(Ident(typeName: TypeName), _) => typeName.toTermName
       }
-      val typeList = dependencies.map { d =>
+      dependencies.map { d =>
         Select(Ident(d), newTypeName(s"${d.encoded}Lib"))
       }
-      CompoundTypeTree(Template(typeList, emptyValDef, List()))
     }
 
-    def createReifiedMembers(body: List[Tree]): List[ValOrDefDef] = {
+    def createReifiedMembers(body: List[Tree]): List[DefDef] = {
       def containsProxyAnnotation(mods: Modifiers): Boolean = mods.annotations.exists {
         case q"new JSExport()" => true
         case q"new scala.scalajs.js.annotation.JSExport()" => true
-        case _ => stop("Aliases in JSExport are not supported yet.")
+        case _ => false
+      }
+
+      def toOverrideMods(mods: Modifiers): Modifiers = {
+        val annots = mods.annotations.filter {
+          case q"new JSExport()" => false
+          case q"new scala.scalajs.js.annotation.JSExport()" => false
+          case _ => true
+        }
+        val flags = if (mods.hasFlag(OVERRIDE)) OVERRIDE else NoFlags
+        Modifiers(flags, mods.privateWithin, annots)
       }
 
       body.collect {
         case q"$mods val $tname: $tpt = ${ _ }" if containsProxyAnnotation(mods) =>
-          q"val $tname: Rep[$tpt] = callVal(self$$, ${tname.encoded})"
+          val result = q"def $tname(implicit ctx: scala.reflect.SourceContext): Rep[$tpt] = callVal(self$$, ${tname.encoded})"
+          q"${toOverrideMods(mods)} def $tname(implicit ctx: scala.reflect.SourceContext): Rep[$tpt] = callVal(self$$, ${tname.encoded})"
 
         case q"$mods def $name[..$tparams](...$vparamss): $tpt = ${ _ }" if containsProxyAnnotation(mods) =>
           val vRepParams = vparamss.map { subList =>
@@ -48,7 +58,7 @@ private object JsProxyMacro {
             }
           }
           val params = vRepParams.flatten.map(_.name)
-          q"def $name[..$tparams](...$vRepParams): Rep[$tpt] = callDef(self$$, ${name.encoded}, $params)"
+          q"""${toOverrideMods(mods)} def $name[..$tparams](...$vRepParams)(implicit ctx: scala.reflect.SourceContext): Rep[$tpt] = callDef(self$$, ${name.encoded}, $params)"""
       }
     }
 
@@ -79,7 +89,7 @@ private object JsProxyMacro {
         }
       }
 
-      val lib = q"""trait $libName extends scalajs2jsscala.DelegatorLib { self: ${depTypeTree(target.impl)} =>
+      val lib = q"""trait $libName extends scalajs2jsscala.DelegatorLib with ..${depTypeTree(target.impl)} { 
             trait $opsName[..$tParams] extends ..$opsParents { 
                 val self$$: Rep[$tName[..$tNames]]
                 ..$reifiedMembers
@@ -91,6 +101,7 @@ private object JsProxyMacro {
                     val self$$: Rep[$tName[..$tNames]] = x
                 }
         }"""
+
 
       q"$compMods object $compName extends ..$compBase { ..$compBody; $lib }"
     }
@@ -114,7 +125,7 @@ private object JsProxyMacro {
       val selfType = tq"Rep[$compName.type]"
 
       val lib = q"""trait $libName extends scalajs2jsscala.DelegatorLib {
-            val $staticName: $selfType = constant(${compName.encoded} + "()")
+            def $staticName(implicit ctx: scala.reflect.SourceContext): $selfType = constant(${compName.encoded + "()"})
             trait $opsName { 
                 val self$$: $selfType
                 ..$reifiedMembers
@@ -128,14 +139,16 @@ private object JsProxyMacro {
         }"""
 
       val modifiedCompanion = q"$compMods object $compName extends ..$compBase { ..$compBody; $lib }"
+      println(modifiedCompanion)
       c.Expr[Any](Block(List(modifiedCompanion), Literal(Constant(()))))
     }
 
-    annottees.map(_.tree).toList match {
+    val result = annottees.map(_.tree).toList match {
       case (companion: ModuleDef) :: Nil => expandSelf(companion)
       case (target: ClassDef) :: Nil => modify(target, None)
       case (target: ClassDef) :: (companion: ModuleDef) :: Nil => modify(target, Some(companion))
     }
+    result
   }
 }
 

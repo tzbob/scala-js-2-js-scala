@@ -12,7 +12,8 @@ scalacOptions ++= Seq(
   "-deprecation",
   "-unchecked",
   "-feature",
-  "-Xlint"
+  "-Xlint",
+  "-Yvirtualize"
 )
 
 libraryDependencies ++= Seq(
@@ -22,7 +23,8 @@ libraryDependencies ++= Seq(
   "EPFL" %% "lms" % "0.3-SNAPSHOT",
   "EPFL" %% "js-scala" % "0.4-SNAPSHOT",
   "org.scalamacros" %% "quasiquotes" % "2.1.0-M5",
-  "org.scala-js" %% "scalajs-stubs" % "0.6.0"
+  "org.scala-js" %% "scalajs-stubs" % "0.6.0",
+  "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 )
 
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0-M5" cross CrossVersion.full)
