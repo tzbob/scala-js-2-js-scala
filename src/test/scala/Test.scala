@@ -21,7 +21,6 @@ class TestMacros extends FunSuite {
 
   @JsScalaProxy
   object Behavior {
-    @JSExport def varargs[A](bs: Behavior[A]*): Behavior[Seq[A]] = ???
     @JSExport def make[A](): Behavior[A] = ???
     @JSExport def makeDiscrete[A](): DiscreteBehavior[A] = ???
   }
@@ -47,8 +46,6 @@ class TestMacros extends FunSuite {
       val dbehavior: Rep[DiscreteBehavior[String]] = BehaviorRep.makeDiscrete()
 
       val testVal: Rep[Behavior[String]] = behavior.testVal
-
-      val testVarargs: Rep[Behavior[Seq[String]]] = Behavior.varargs(behavior, testVal)
 
       val fun: Rep[String => Int] = fun { x => 5 }
       val a: Rep[Behavior[Int]] = behavior.testSelf(fun)
