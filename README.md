@@ -20,40 +20,36 @@ object Behavior {
 
 // TO
 
-@JsScalaProxy trait Behavior[+A] {
-  @JSExport def map[B](f: A => B): Behavior[B]
-}
-
 @JsScalaProxy
 object Behavior {
-    @JSExport def make[A](): Behavior[A] = ???
+  @JSExport def make[A](): Behavior[A] = ???
 
-    trait BehaviorLib extends scalajs2jsscala.DelegatorLib {
-        trait BehaviorOps {
-          val self: Rep[Behavior[A]]
-          def map[B](f: Rep[A => B])(implicit ctx: scala.reflect.SourceContext): Rep[Behavior[B]] = 
-            callDef(self, "map", List(f))
-        }
-
-        implicit def addRepOps1(x: Rep[Behavior[A]]): BehaviorOps[A] =
-            new BehaviorOps {
-                val self = x
-            }
+  trait BehaviorLib extends scalajs2jsscala.DelegatorLib {
+    trait BehaviorOps {
+      val self: Rep[Behavior[A]]
+      def map[B](f: Rep[A => B])(implicit ctx: scala.reflect.SourceContext): Rep[Behavior[B]] =
+        callDef(self, "map", List(f))
     }
 
-    trait BehaviorStaticLib extends scalajs2jsscala.Delegatorlib {
-        def BehaviorRep(implicit ctx: scala.reflect.SourceContext): Rep[Behavior.type] =
-            constant("Behavior()")
-        trait BehaviorStaticOps {
-            val self: Rep[Behavior.type]
-            def make[A]()(implicit ctx: scala.reflect.SourceContext): Rep[Behavior[A]] = 
-            callDef(self, "make", List())
-            implicit def addRepOps2(x: Rep[Behavior.type]): BehaviorStaticOps[A] =
-                new BehaviorStaticOps {
-                    val self = x
-                }
+    implicit def addRepOps1(x: Rep[Behavior[A]]): BehaviorOps[A] =
+      new BehaviorOps {
+        val self = x
+      }
+  }
+
+  trait BehaviorStaticLib extends scalajs2jsscala.Delegatorlib {
+    def BehaviorRep(implicit ctx: scala.reflect.SourceContext): Rep[Behavior.type] =
+      constant("Behavior()")
+    trait BehaviorStaticOps {
+      val self: Rep[Behavior.type]
+      def make[A]()(implicit ctx: scala.reflect.SourceContext): Rep[Behavior[A]] =
+        callDef(self, "make", List())
+      implicit def addRepOps2(x: Rep[Behavior.type]): BehaviorStaticOps[A] =
+        new BehaviorStaticOps {
+          val self = x
         }
     }
+  }
 }
 ```
 
