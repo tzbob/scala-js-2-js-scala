@@ -102,7 +102,6 @@ private object JsProxyMacro {
                 }
         }"""
 
-
       q"$compMods object $compName extends ..$compBase { ..$compBody; $lib }"
     }
 
@@ -115,6 +114,11 @@ private object JsProxyMacro {
     def expandSelf(mod: ModuleDef) = {
       val q"$compMods object $compName extends ..$compBase { ..$compBody }" = mod
 
+      // typecheck a dummy to retrieve our owner
+      val freshName = c.fresh(newTypeName("Probe$"))
+      val probe = c.typeCheck(q""" {class $freshName; ()} """)
+      val owner = probe match { case Block(List(t), r) => t.symbol.owner.fullName }
+
       val staticName = newTermName(s"${compName.encoded}Rep")
       val libName = newTypeName(s"${compName.encoded}StaticLib")
       val opsName = newTypeName(s"${compName.encoded}StaticOps")
@@ -125,7 +129,7 @@ private object JsProxyMacro {
       val selfType = tq"Rep[$compName.type]"
 
       val lib = q"""trait $libName extends scalajs2jsscala.DelegatorLib {
-            def $staticName(implicit ctx: scala.reflect.SourceContext): $selfType = constant(${compName.encoded + "()"})
+            def $staticName(implicit ctx: scala.reflect.SourceContext): $selfType = constant(${owner + compName.encoded + "()"})
             trait $opsName { 
                 val self$$: $selfType
                 ..$reifiedMembers
@@ -139,7 +143,6 @@ private object JsProxyMacro {
         }"""
 
       val modifiedCompanion = q"$compMods object $compName extends ..$compBase { ..$compBody; $lib }"
-      println(modifiedCompanion)
       c.Expr[Any](Block(List(modifiedCompanion), Literal(Constant(()))))
     }
 

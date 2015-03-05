@@ -1,14 +1,11 @@
-import java.io.PrintWriter
-import java.io.StringWriter
+import org.scalatest.FunSuite
+import scala.js.exp.JSExp
 import scala.js.gen.js.GenJS
+import scala.js.language.JS
 import scala.scalajs.js.annotation.JSExport
 import scala.virtualization.lms.common._
-import scalajs2jsscala.annotation.JsScalaProxy
 import scalajs2jsscala._
-import scala.js.language.JS
-import scala.js.exp.JSExp
-
-import org.scalatest.FunSuite
+import scalajs2jsscala.annotation.JsScalaProxy
 
 class TestMacros extends FunSuite {
 
@@ -20,6 +17,7 @@ class TestMacros extends FunSuite {
   }
 
   @JsScalaProxy
+  @JSExport
   object Behavior {
     @JSExport def make[A](): Behavior[A] = ???
     @JSExport def makeDiscrete[A](): DiscreteBehavior[A] = ???
@@ -38,9 +36,9 @@ class TestMacros extends FunSuite {
   test("Generated js-scala components should be available") {
     implicit lazy val context: scala.reflect.SourceContext = ???
     trait Test extends JS
-        with Behavior.BehaviorStaticLib
-        with Behavior.BehaviorLib
-        with DiscreteBehavior.DiscreteBehaviorLib {
+      with Behavior.BehaviorStaticLib
+      with Behavior.BehaviorLib
+      with DiscreteBehavior.DiscreteBehaviorLib {
 
       val behavior: Rep[Behavior[String]] = BehaviorRep.make()
       val dbehavior: Rep[DiscreteBehavior[String]] = BehaviorRep.makeDiscrete()
