@@ -21,6 +21,7 @@ class TestMacros extends FunSuite {
   object Behavior {
     @JSExport def make[A](): Behavior[A] = ???
     @JSExport def makeDiscrete[A](): DiscreteBehavior[A] = ???
+    @JSExport def makeDiscrete[A](test: A): DiscreteBehavior[A] = ???
   }
 
   @JsScalaProxy
@@ -40,14 +41,19 @@ class TestMacros extends FunSuite {
       with Behavior.BehaviorLib
       with DiscreteBehavior.DiscreteBehaviorLib {
 
-      val behavior: Rep[Behavior[String]] = BehaviorRep.make()
-      val dbehavior: Rep[DiscreteBehavior[String]] = BehaviorRep.makeDiscrete()
+      val repString: Rep[String] = "test"
 
-      val testVal: Rep[Behavior[String]] = behavior.testVal
+      val behavior: Rep[ScalaJs[Behavior[String]]] = BehaviorRep.make()
+
+      // test the use of an unwrapped type in an abstract type position
+      val dbehavior: Rep[ScalaJs[DiscreteBehavior[String]]] = BehaviorRep.makeDiscrete(repString)
+
+      val testVal: Rep[ScalaJs[Behavior[String]]] = behavior.testVal
 
       val fun: Rep[String => Int] = fun { x => 5 }
-      val a: Rep[Behavior[Int]] = behavior.testSelf(fun)
-      val b: Rep[DiscreteBehavior[Int]] = dbehavior.newer(fun)
+
+      val a: Rep[ScalaJs[Behavior[Int]]] = behavior.testSelf(fun.encode)
+      val b: Rep[ScalaJs[DiscreteBehavior[Int]]] = dbehavior.newer(fun.encode)
     }
   }
 }

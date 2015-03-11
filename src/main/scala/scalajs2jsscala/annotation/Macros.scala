@@ -48,17 +48,17 @@ private object JsProxyMacro {
 
       body.collect {
         case q"$mods val $tname: $tpt = ${ _ }" if containsProxyAnnotation(mods) =>
-          val result = q"def $tname(implicit ctx: scala.reflect.SourceContext): Rep[$tpt] = callVal(self$$, ${tname.encoded})"
-          q"${toOverrideMods(mods)} def $tname(implicit ctx: scala.reflect.SourceContext): Rep[$tpt] = callVal(self$$, ${tname.encoded})"
+          q"${toOverrideMods(mods)} def $tname(implicit ctx: scala.reflect.SourceContext): Rep[ScalaJs[$tpt]] = callVal(self$$, ${tname.encoded})"
 
         case q"$mods def $name[..$tparams](...$vparamss): $tpt = ${ _ }" if containsProxyAnnotation(mods) =>
           val vRepParams = vparamss.map { subList =>
             subList.map { v =>
-              q"val ${v.name}: Rep[${v.tpt}]"
+              println(showRaw(v.tpt))
+              q"val ${v.name}: Rep[ScalaJs[${v.tpt}]]"
             }
           }
           val params = vRepParams.flatten.map(_.name)
-          q"""${toOverrideMods(mods)} def $name[..$tparams](...$vRepParams)(implicit ctx: scala.reflect.SourceContext): Rep[$tpt] = callDef(self$$, ${name.encoded}, $params)"""
+          q"""${toOverrideMods(mods)} def $name[..$tparams](...$vRepParams)(implicit ctx: scala.reflect.SourceContext): Rep[ScalaJs[$tpt]] = callDef(self$$, ${name.encoded}, $params)"""
       }
     }
 
@@ -89,16 +89,36 @@ private object JsProxyMacro {
         }
       }
 
+      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
+
       val lib = q"""trait $libName extends scalajs2jsscala.DelegatorLib with ..${depTypeTree(target.impl)} { 
             trait $opsName[..$tParams] extends ..$opsParents { 
-                val self$$: Rep[$tName[..$tNames]]
+                val self$$: $selfType
                 ..$reifiedMembers
             }
 
             import scala.language.implicitConversions
             implicit def $implicitOpsName[..$tParamsUnmodded](x: Rep[$tName[..$tNames]]): $opsName[..$tNames] = 
+      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
+
+      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
+
+      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
+
+      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
+
+      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
+
+      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
+
+      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
+
+      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
+
+      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
+
                 new $opsName[..$tNames] {
-                    val self$$: Rep[$tName[..$tNames]] = x
+                    val self$$: $selfType = x
                 }
         }"""
 
@@ -126,10 +146,10 @@ private object JsProxyMacro {
 
       val reifiedMembers = createReifiedMembers(mod.impl.body)
 
-      val selfType = tq"Rep[$compName.type]"
+      val selfType = tq"Rep[ScalaJs[$compName.type]]"
 
       val lib = q"""trait $libName extends scalajs2jsscala.DelegatorLib {
-            def $staticName(implicit ctx: scala.reflect.SourceContext): $selfType = constant(${owner + compName.encoded + "()"})
+            def $staticName(implicit ctx: scala.reflect.SourceContext): $selfType = constant(${owner + "." + compName.encoded + "()"})
             trait $opsName { 
                 val self$$: $selfType
                 ..$reifiedMembers
@@ -154,4 +174,3 @@ private object JsProxyMacro {
     result
   }
 }
-
