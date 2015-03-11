@@ -63,7 +63,7 @@ trait DelegatorLib extends Base {
   }
 
   def constant[T: Manifest](name: String)(implicit ctx: SourceContext): Rep[ScalaJs[T]]
-  def callDef[T: Manifest](self: Rep[ScalaJs[Any]], name: String, params: List[Rep[ScalaJs[Any]]])(implicit ctx: SourceContext): Rep[ScalaJs[T]]
+  def callDef[T: Manifest](self: Rep[ScalaJs[Any]], name: String, params: List[Rep[Any]])(implicit ctx: SourceContext): Rep[ScalaJs[T]]
   def callVal[T: Manifest](self: Rep[ScalaJs[Any]], name: String)(implicit ctx: SourceContext): Rep[ScalaJs[T]]
 
   def encodeIdentical[A: Manifest](r: Rep[A])(implicit ctx: SourceContext): Rep[ScalaJs[A]]
@@ -88,7 +88,7 @@ trait DelegatorExp extends DelegatorLib with FFIExp {
 
   def constant[T: Manifest](name: String)(implicit ctx: SourceContext): Rep[ScalaJs[T]] =
     toAtom(Constant(name))
-  def callDef[T: Manifest](self: Rep[ScalaJs[Any]], name: String, params: List[Exp[ScalaJs[Any]]])(implicit ctx: SourceContext): Rep[ScalaJs[T]] =
+  def callDef[T: Manifest](self: Rep[ScalaJs[Any]], name: String, params: List[Exp[Any]])(implicit ctx: SourceContext): Rep[ScalaJs[T]] =
     reflectEffect(CallDef(self, name, params))
   def callVal[T: Manifest](self: Rep[ScalaJs[Any]], name: String)(implicit ctx: SourceContext): Rep[ScalaJs[T]] =
     reflectEffect(CallVal(self, name))

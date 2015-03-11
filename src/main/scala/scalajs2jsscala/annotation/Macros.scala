@@ -51,10 +51,25 @@ private object JsProxyMacro {
           q"${toOverrideMods(mods)} def $tname(implicit ctx: scala.reflect.SourceContext): Rep[ScalaJs[$tpt]] = callVal(self$$, ${tname.encoded})"
 
         case q"$mods def $name[..$tparams](...$vparamss): $tpt = ${ _ }" if containsProxyAnnotation(mods) =>
+          val selectScala = Select(Ident(nme.ROOTPKG), newTypeName("scala"))
+          val bottom = Select(selectScala, newTypeName("Nothing"))
+          val top = Select(selectScala, newTypeName("Any"))
+
+          val abstractTypes = tparams.collect {
+            case TypeDef(mods, tname, List(), TypeBoundsTree(bottom, top)) =>
+              tname
+          }
+
           val vRepParams = vparamss.map { subList =>
             subList.map { v =>
-              println(showRaw(v.tpt))
-              q"val ${v.name}: Rep[ScalaJs[${v.tpt}]]"
+              val isAbstractType = v.tpt match {
+                case Ident(tname) => abstractTypes contains tname
+                case _ => false
+              }
+              if (isAbstractType)
+                q"val ${v.name}: Rep[${v.tpt}]"
+              else
+                q"val ${v.name}: Rep[ScalaJs[${v.tpt}]]"
             }
           }
           val params = vRepParams.flatten.map(_.name)
@@ -98,25 +113,7 @@ private object JsProxyMacro {
             }
 
             import scala.language.implicitConversions
-            implicit def $implicitOpsName[..$tParamsUnmodded](x: Rep[$tName[..$tNames]]): $opsName[..$tNames] = 
-      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
-
-      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
-
-      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
-
-      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
-
-      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
-
-      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
-
-      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
-
-      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
-
-      val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
-
+            implicit def $implicitOpsName[..$tParamsUnmodded](x: $selfType): $opsName[..$tNames] = 
                 new $opsName[..$tNames] {
                     val self$$: $selfType = x
                 }
