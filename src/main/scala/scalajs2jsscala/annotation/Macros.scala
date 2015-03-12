@@ -4,6 +4,7 @@ import scala.annotation.StaticAnnotation
 import scala.js.gen.js.GenBase
 import scala.language.experimental.macros
 import scala.reflect.macros.Context
+import scala.util.{ Try => UTry }
 
 class JsScalaProxy(proxies: String*) extends StaticAnnotation {
   def macroTransform(annottees: Any*) = macro JsProxyMacro.impl
@@ -13,6 +14,70 @@ private object JsProxyMacro {
   def impl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
     import c.universe._
     import Flag._
+
+    class AbstractTypeCheck(splice: Tree => Tree) {
+      def deeper(defs: List[TypeDef]) = new AbstractTypeCheck(
+        splice compose AbstractTypeCheck.defsToSplicer(defs)
+      )
+
+      def isAbstract(tname: TypeName): Boolean = {
+        val target = q"null.asInstanceOf[$tname]"
+        val dummy = q"{${splice(target)}; ()}"
+        val symbol = UTry(c.typeCheck(dummy.duplicate)).toOption
+          .flatMap(_.find { tree =>
+            tree match {
+              case q"null.asInstanceOf[${_}]" => true
+              case _ => false
+            }
+          })
+          .map(_.tpe.typeSymbol).flatMap { symbol =>
+            if (symbol.isType) Some(symbol.asType)
+            else None
+          }
+        symbol.fold(false)(_.isAbstractType)
+      }
+    }
+
+    object AbstractTypeCheck {
+      private def collectAbstractTypes(tparams: List[TypeDef]): List[TypeDef] = {
+        val selectScala = Select(Ident(nme.ROOTPKG), newTypeName("scala"))
+        val bottom = Select(selectScala, newTypeName("Nothing"))
+        val top = Select(selectScala, newTypeName("Any"))
+
+        tparams.filter {
+          case TypeDef(mods, tname, List(), TypeBoundsTree(bottom, top)) =>
+            true
+          case _ => false
+        }
+      }
+
+      def defsToSplicer(defs: List[TypeDef]): Tree => Tree = { tree =>
+        val freshName = c.fresh(newTypeName("Dummy$"))
+        val typeNames = collectAbstractTypes(defs)
+        q"class $freshName { ..$typeNames; $tree }"
+      }
+
+      def apply(defs: List[TypeDef]) =
+        new AbstractTypeCheck(defsToSplicer(defs))
+    }
+
+    class EncodeWithScalaJs(atc: AbstractTypeCheck) extends Transformer {
+      private def isAbstractType(t: Tree) = t match {
+        case Ident(tname: TypeName) =>
+          atc.isAbstract(tname)
+        case _ => false
+      }
+
+      override def transform(t: Tree): Tree = t match {
+        case AppliedTypeTree(x, ys) =>
+          val zs = ys.map { y =>
+            if (isAbstractType(y)) y
+            else tq"ScalaJs[${transform(y)}]"
+          }
+          AppliedTypeTree(x, zs)
+        case other => super.transform(other)
+      }
+    }
 
     def stop(msg: String) = c.abort(c.enclosingPosition, msg)
 
@@ -29,7 +94,7 @@ private object JsProxyMacro {
       }
     }
 
-    def createReifiedMembers(body: List[Tree]): List[DefDef] = {
+    def createReifiedMembers(body: List[Tree])(parentAtc: AbstractTypeCheck): List[DefDef] = {
       def containsProxyAnnotation(mods: Modifiers): Boolean = mods.annotations.exists {
         case q"new JSExport()" => true
         case q"new scala.scalajs.js.annotation.JSExport()" => true
@@ -51,29 +116,19 @@ private object JsProxyMacro {
           q"${toOverrideMods(mods)} def $tname(implicit ctx: scala.reflect.SourceContext): Rep[ScalaJs[$tpt]] = callVal(self$$, ${tname.encoded})"
 
         case q"$mods def $name[..$tparams](...$vparamss): $tpt = ${ _ }" if containsProxyAnnotation(mods) =>
-          val selectScala = Select(Ident(nme.ROOTPKG), newTypeName("scala"))
-          val bottom = Select(selectScala, newTypeName("Nothing"))
-          val top = Select(selectScala, newTypeName("Any"))
 
-          val abstractTypes = tparams.collect {
-            case TypeDef(mods, tname, List(), TypeBoundsTree(bottom, top)) =>
-              tname
-          }
+          val atc = parentAtc.deeper(tparams)
+          val enc = new EncodeWithScalaJs(atc)
 
           val vRepParams = vparamss.map { subList =>
             subList.map { v =>
-              val isAbstractType = v.tpt match {
-                case Ident(tname) => abstractTypes contains tname
-                case _ => false
-              }
-              if (isAbstractType)
-                q"val ${v.name}: Rep[${v.tpt}]"
-              else
-                q"val ${v.name}: Rep[ScalaJs[${v.tpt}]]"
+              val encType = enc.transform(tq"Rep[${v.tpt}]")
+              q"val ${v.name}: $encType"
             }
           }
+          val returnType = enc.transform(tq"Rep[$tpt]")
           val params = vRepParams.flatten.map(_.name)
-          q"""${toOverrideMods(mods)} def $name[..$tparams](...$vRepParams)(implicit ctx: scala.reflect.SourceContext): Rep[ScalaJs[$tpt]] = callDef(self$$, ${name.encoded}, $params)"""
+          q"""${toOverrideMods(mods)} def $name[..$tparams](...$vRepParams)(implicit ctx: scala.reflect.SourceContext): $returnType = callDef(self$$, ${name.encoded}, $params)"""
       }
     }
 
@@ -92,16 +147,15 @@ private object JsProxyMacro {
       val opsName = mkOpsName(tName)
       val implicitOpsName = newTermName(c.fresh)
 
-      val reifiedMembers = createReifiedMembers(target.impl.body)
+      val ClassDef(_, _, tparams, Template(parents, _, _)) = target
+      val atc = AbstractTypeCheck(tparams)
+      val reifiedMembers = createReifiedMembers(target.impl.body)(atc)
 
-      val opsParents = {
-        val ClassDef(_, _, _, Template(types, _, _)) = target
-        types.collect {
-          case AppliedTypeTree(Ident(tName: TypeName), xs) =>
-            AppliedTypeTree(Ident(mkOpsName(tName)), xs)
-          case Ident(tName: TypeName) =>
-            Ident(mkOpsName(tName))
-        }
+      val opsParents = parents.collect {
+        case AppliedTypeTree(Ident(tName: TypeName), xs) =>
+          AppliedTypeTree(Ident(mkOpsName(tName)), xs)
+        case Ident(tName: TypeName) =>
+          Ident(mkOpsName(tName))
       }
 
       val selfType = tq"Rep[ScalaJs[$tName[..$tNames]]]"
@@ -128,6 +182,9 @@ private object JsProxyMacro {
       c.Expr[Any](Block(List(target, modifiedCompanion), Literal(Constant(()))))
     }
 
+    /**
+     * Adds the StaticOps within a StaticLib for the given module
+     */
     def expandSelf(mod: ModuleDef) = {
       val q"$compMods object $compName extends ..$compBase { ..$compBody }" = mod
 
@@ -141,7 +198,8 @@ private object JsProxyMacro {
       val opsName = newTypeName(s"${compName.encoded}StaticOps")
       val implicitOpsName = newTermName(c.fresh)
 
-      val reifiedMembers = createReifiedMembers(mod.impl.body)
+      val atc = AbstractTypeCheck(Nil)
+      val reifiedMembers = createReifiedMembers(mod.impl.body)(atc)
 
       val selfType = tq"Rep[ScalaJs[$compName.type]]"
 

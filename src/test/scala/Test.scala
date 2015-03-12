@@ -19,6 +19,7 @@ class TestMacros extends FunSuite {
   @JsScalaProxy
   @JSExport
   object Behavior {
+    @JSExport def merge[A](events: Seq[Behavior[A]]): Behavior[Seq[A]] = ???
     @JSExport def make[A](): Behavior[A] = ???
     @JSExport def makeDiscrete[A](): DiscreteBehavior[A] = ???
     @JSExport def makeDiscrete[A](test: A): DiscreteBehavior[A] = ???
@@ -35,11 +36,13 @@ class TestMacros extends FunSuite {
   }
 
   test("Generated js-scala components should be available") {
-    implicit lazy val context: scala.reflect.SourceContext = ???
     trait Test extends JS
       with Behavior.BehaviorStaticLib
       with Behavior.BehaviorLib
       with DiscreteBehavior.DiscreteBehaviorLib {
+      implicit lazy val context: scala.reflect.SourceContext = ???
+
+      val test: Rep[ScalaJs[Seq[ScalaJs[Behavior[String]]]]] => Rep[ScalaJs[Behavior[ScalaJs[Seq[String]]]]] = BehaviorRep.merge
 
       val repString: Rep[String] = "test"
 
