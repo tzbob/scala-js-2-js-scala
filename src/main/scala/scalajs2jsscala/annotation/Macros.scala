@@ -74,7 +74,7 @@ private object JsProxyMacro {
         nativeTypes.contains(tname) || atc.isAbstract(tname)
       }
 
-      override def transform(t: Tree): Tree = print(t) match {
+      override def transform(t: Tree): Tree = t match {
         case tq"Seq[$p]" => tq"Seq[${transform(p)}]"
         case tq"Map[String, $v]" => tq"Map[String, ${transform(v)}]"
         case Ident(tname: TypeName) =>
@@ -86,10 +86,9 @@ private object JsProxyMacro {
             typeDefList
           )
         case tq"$x[..$ys]" if !ys.isEmpty => tq"ScalaJs[$x[..${ys.map(x => transform(x))}]]"
-        case other => super.transform(print(other))
+        case other => super.transform(other)
       }
     }
-    def print[T](x: T): T = { println(showRaw(x)); x }
 
     def stop(msg: String) = c.abort(c.enclosingPosition, msg)
 
@@ -231,7 +230,6 @@ private object JsProxyMacro {
                 }
         }"""
 
-      println(lib)
       val modifiedCompanion = q"$compMods object $compName extends ..$compBase { ..$compBody; $lib }"
       c.Expr[Any](Block(List(modifiedCompanion), Literal(Constant(()))))
     }
