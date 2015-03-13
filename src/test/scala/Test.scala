@@ -19,6 +19,8 @@ class TestMacros extends FunSuite {
   @JsScalaProxy
   @JSExport
   object Behavior {
+    @JSExport def fire(pulses: Seq[(Behavior[A], A) forSome { type A }]): Unit = ???
+    @JSExport def testUnit(): Unit = ???
     @JSExport def merge[A](events: Seq[Behavior[A]]): Behavior[Seq[A]] = ???
     @JSExport def make[A](): Behavior[A] = ???
     @JSExport def makeDiscrete[A](): DiscreteBehavior[A] = ???
@@ -42,7 +44,11 @@ class TestMacros extends FunSuite {
       with DiscreteBehavior.DiscreteBehaviorLib {
       implicit lazy val context: scala.reflect.SourceContext = ???
 
-      val test: Rep[ScalaJs[Seq[ScalaJs[Behavior[String]]]]] => Rep[ScalaJs[Behavior[ScalaJs[Seq[String]]]]] = BehaviorRep.merge
+      val testTuplesAndExistentials: Rep[Seq[ScalaJs[(ScalaJs[Behavior[String]], String)]]] => Rep[Unit] = BehaviorRep.fire
+
+      val testUnit: () => Rep[Unit] = BehaviorRep.testUnit
+
+      val test: Rep[Seq[ScalaJs[Behavior[String]]]] => Rep[ScalaJs[Behavior[Seq[String]]]] = BehaviorRep.merge
 
       val repString: Rep[String] = "test"
 
