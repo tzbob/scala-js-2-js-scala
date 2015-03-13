@@ -52,7 +52,6 @@ trait DelegatorLib extends Base {
   def callDef[T: Manifest](self: Rep[ScalaJs[Any]], name: String, params: List[Rep[Any]])(implicit ctx: SourceContext): Rep[T]
   def callVal[T: Manifest](self: Rep[ScalaJs[Any]], name: String)(implicit ctx: SourceContext): Rep[T]
 
-  def encodeIdentical[A: Manifest](r: Rep[A])(implicit ctx: SourceContext): Rep[ScalaJs[A]]
   def encodeOptions[A: Manifest](r: Rep[Option[A]])(implicit ctx: SourceContext): Rep[ScalaJs[Option[A]]]
   def encodeFn0[A: Manifest](r: Rep[Function0[A]])(implicit ctx: SourceContext): Rep[ScalaJs[Function0[A]]]
   def encodeFn1[A: Manifest, R: Manifest](r: Rep[Function1[A, R]])(implicit ctx: SourceContext): Rep[ScalaJs[Function1[A, R]]]
@@ -62,7 +61,6 @@ trait DelegatorLib extends Base {
   def encodeTup3[A: Manifest, B: Manifest, R: Manifest](r: Rep[Tuple3[A, B, R]])(implicit ctx: SourceContext): Rep[ScalaJs[Tuple3[A, B, R]]]
   def encodeTup4[A: Manifest, B: Manifest, C: Manifest, R: Manifest](r: Rep[Tuple4[A, B, C, R]])(implicit ctx: SourceContext): Rep[ScalaJs[Tuple4[A, B, C, R]]]
 
-  def decodeIdentical[A: Manifest](r: Rep[ScalaJs[A]])(implicit ctx: SourceContext): Rep[A]
   def decodeOptions[A: Manifest](r: Rep[ScalaJs[Option[A]]])(implicit ctx: SourceContext): Rep[Option[A]]
   def decodeFn0[A: Manifest](r: Rep[ScalaJs[Function0[A]]])(implicit ctx: SourceContext): Rep[Function0[A]]
   def decodeFn1[A: Manifest, R: Manifest](r: Rep[ScalaJs[Function1[A, R]]])(implicit ctx: SourceContext): Rep[Function1[A, R]]
