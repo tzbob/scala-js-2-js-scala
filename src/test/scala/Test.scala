@@ -44,11 +44,9 @@ class TestMacros extends FunSuite {
       with DiscreteBehavior.DiscreteBehaviorLib {
       implicit lazy val context: scala.reflect.SourceContext = ???
 
-      val testTuplesAndExistentials: Rep[Seq[ScalaJs[(ScalaJs[Behavior[String]], String)]]] => Rep[Unit] = BehaviorRep.fire
+      val testTuplesAndExistentials: Rep[ScalaJs[Seq[ScalaJs[(ScalaJs[Behavior[String]], String)]]]] => Rep[Unit] = BehaviorRep.fire
 
       val testUnit: () => Rep[Unit] = BehaviorRep.testUnit
-
-      val test: Rep[Seq[ScalaJs[Behavior[String]]]] => Rep[ScalaJs[Behavior[Seq[String]]]] = BehaviorRep.merge
 
       val repString: Rep[String] = "test"
 
@@ -61,8 +59,9 @@ class TestMacros extends FunSuite {
 
       val fun: Rep[String => Int] = fun { x => 5 }
 
-      val a: Rep[ScalaJs[Behavior[Int]]] = behavior.testSelf(fun.encode)
-      val b: Rep[ScalaJs[DiscreteBehavior[Int]]] = dbehavior.newer(fun.encode)
+      val fun2: Rep[((String, Int)) => Int] = fun { (x: Rep[String], y: Rep[Int]) => 5 }
+
+      val a: Rep[ScalaJs[Behavior[Int]]] = behavior.testSelf(ScalaJsRuntime.encodeFn1(fun))
     }
   }
 }

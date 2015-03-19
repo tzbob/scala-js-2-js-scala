@@ -75,8 +75,6 @@ private object JsProxyMacro {
       }
 
       override def transform(t: Tree): Tree = t match {
-        case tq"Seq[$p]" => tq"Seq[${transform(p)}]"
-        case tq"Map[String, $v]" => tq"Map[String, ${transform(v)}]"
         case Ident(tname: TypeName) =>
           if (shouldNotWrap(tname)) tq"$tname"
           else tq"ScalaJs[$tname]"
