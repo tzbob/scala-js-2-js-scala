@@ -16,7 +16,7 @@ private object JsProxyMacro {
     import Flag._
 
     class AbstractTypeCheck(splice: Tree => Tree) {
-      def deeper(defs: List[Tree]) = new AbstractTypeCheck(
+      def deeper(defs: List[TypeDef]) = new AbstractTypeCheck(
         splice compose AbstractTypeCheck.defsToSplicer(defs)
       )
 
@@ -39,24 +39,20 @@ private object JsProxyMacro {
     }
 
     object AbstractTypeCheck {
-      private def collectAbstractTypes(tparams: List[Tree]): List[TypeDef] = {
-        val selectScala = Select(Ident(nme.ROOTPKG), newTypeName("scala"))
-        val bottom = Select(selectScala, newTypeName("Nothing"))
-        val top = Select(selectScala, newTypeName("Any"))
 
-        tparams.collect {
-          case i @ TypeDef(mods, tname, List(), TypeBoundsTree(bottom, top)) => i
+      private def collectAbstractTypes(tparams: List[TypeDef]): List[TypeDef] = {
+        tparams.map {
+          case i @ TypeDef(mods, tname, tparams, t) => q"type $tname[..$tparams]"
         }
       }
 
-      def defsToSplicer(defs: List[Tree]): Tree => Tree = { tree =>
+      def defsToSplicer(defs: List[TypeDef]): Tree => Tree = { tree =>
         val freshName = c.fresh(newTypeName("Dummy$"))
         val typeNames = collectAbstractTypes(defs)
         q"class $freshName { ..$typeNames; $tree }"
       }
 
-      def apply(defs: List[TypeDef]) =
-        new AbstractTypeCheck(defsToSplicer(defs))
+      def apply(defs: List[TypeDef]) = new AbstractTypeCheck(defsToSplicer(defs))
     }
 
     class EncodeWithScalaJs(atc: AbstractTypeCheck) extends Transformer {
@@ -71,20 +67,46 @@ private object JsProxyMacro {
           "Double",
           "Unit"
         ).map(str => newTypeName(str))
+
         nativeTypes.contains(tname) || atc.isAbstract(tname)
       }
 
-      override def transform(t: Tree): Tree = t match {
-        case Ident(tname: TypeName) =>
-          if (shouldNotWrap(tname)) tq"$tname"
-          else tq"ScalaJs[$tname]"
-        case ExistentialTypeTree(t, typeDefList) =>
-          ExistentialTypeTree(
-            new EncodeWithScalaJs(atc.deeper(typeDefList)).transform(t),
-            typeDefList
-          )
-        case tq"$x[..$ys]" if !ys.isEmpty => tq"ScalaJs[$x[..${ys.map(x => transform(x))}]]"
-        case other => super.transform(other)
+      override def transform(t: Tree): Tree = {
+        t match {
+          case tq"_root_.scala.Any" | tq"_root_.scala.Nothing" => t
+          case Ident(tname: TypeName) =>
+            if (shouldNotWrap(tname)) tq"$tname"
+            else tq"ScalaJs[$tname]"
+
+          case tq"$x[..$ys]" if !ys.isEmpty => tq"ScalaJs[$x[..${ys.map(x => transform(x))}]]"
+
+          case c @ tq"..$parents { ..$defns }" =>
+            val nParents = parents.map(x => transform(x))
+            val nDefs = defns.map(x => transform(x))
+            tq"..$nParents {..$nDefs }"
+
+          case tq"$ref.type" => tq"ScalaJs[$ref.type]"
+          case tq"$tpt#$tpname" => tq"ScalaJs[$tpt#$tpname]"
+          case tq"$ref.$tpname" => tq"ScalaJs[$ref.$tpname]"
+
+          case tq"$tpt forSome { ..$defns }" =>
+            val transformedTypeDefs = defns.map {
+              case t: TypeDef => transformTypeDef(t)
+              case i => i
+            }
+            ExistentialTypeTree(
+              new EncodeWithScalaJs(atc.deeper(defns.collect { case i: TypeDef => i })).transform(tpt),
+              transformedTypeDefs
+            )
+          case other => super.transform(other)
+        }
+      }
+
+      def transformTypeDef(td: TypeDef): TypeDef = {
+        val TypeDef(mods, tname, others, bounds) = td
+        val nBounds = transform(bounds)
+        val nOthers = others.map(x => transformTypeDef(x))
+        TypeDef(mods, tname, nOthers, nBounds)
       }
     }
 
@@ -122,7 +144,12 @@ private object JsProxyMacro {
 
       body.collect {
         case q"$mods val $tname: $tpt = ${ _ }" if containsProxyAnnotation(mods) =>
-          q"${toOverrideMods(mods)} def $tname(implicit ctx: scala.reflect.SourceContext): Rep[ScalaJs[$tpt]] = callVal(self$$, ${tname.encoded})"
+          val atc = parentAtc.deeper(List.empty)
+          val enc = new EncodeWithScalaJs(atc)
+
+          val resultType = tq"Rep[${enc.transform(tpt)}]"
+
+          q"${toOverrideMods(mods)} def $tname(implicit ctx: scala.reflect.SourceContext): $resultType = callVal(self$$, ${tname.encoded})"
 
         case q"$mods def $name[..$tparams](...$vparamss): $tpt = ${ _ }" if containsProxyAnnotation(mods) =>
 
@@ -130,6 +157,8 @@ private object JsProxyMacro {
           val enc = new EncodeWithScalaJs(atc)
 
           def transformedRep(t: Tree) = tq"Rep[${enc.transform(t)}]"
+
+          val tRepParams = tparams.map { t => enc.transformTypeDef(t) }
 
           val vRepParams = vparamss.map { subList =>
             subList.map { v =>
@@ -139,7 +168,7 @@ private object JsProxyMacro {
           }
           val returnType = transformedRep(tpt)
           val params = vRepParams.flatten.map(_.name)
-          q"""${toOverrideMods(mods)} def $name[..$tparams](...$vRepParams)(implicit ctx: scala.reflect.SourceContext): $returnType = callDef(self$$, ${name.encoded}, $params)"""
+          q"""${toOverrideMods(mods)} def $name[..$tRepParams](...$vRepParams)(implicit ctx: scala.reflect.SourceContext): $returnType = callDef(self$$, ${name.encoded}, $params)"""
       }
     }
 
@@ -237,6 +266,8 @@ private object JsProxyMacro {
       case (target: ClassDef) :: Nil => modify(target, None)
       case (target: ClassDef) :: (companion: ModuleDef) :: Nil => modify(target, Some(companion))
     }
+
+    println(result)
     result
   }
 }
