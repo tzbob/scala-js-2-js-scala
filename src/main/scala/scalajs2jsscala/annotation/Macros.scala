@@ -267,7 +267,6 @@ private object JsProxyMacro {
       case (target: ClassDef) :: (companion: ModuleDef) :: Nil => modify(target, Some(companion))
     }
 
-    println(result)
     result
   }
 }
