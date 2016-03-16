@@ -64,7 +64,7 @@ Please follow the install guide on the official [scala-sbt.org](http://www.scala
 
     git clone https://github.com/TiarkRompf/virtualization-lms-core.git
     cd virtualization-lms-core
-    git checkout fabff2a64983cfb7a787db186d51c249228b9ffc
+    git checkout a6ae135
     sbt publish-local
     cd ..
 
@@ -72,14 +72,14 @@ Please follow the install guide on the official [scala-sbt.org](http://www.scala
 
     git clone https://github.com/js-scala/js-scala.git
     cd js-scala
-    git checkout febdc39e3e1da7803ec51268781bc883da2dcda6
+    git checkout 0b5771853a35a37d011f0ddebf770fdcd7fc8bc1
     sbt publish-local
     cd ..
 
 ### Install
     git clone git@github.com:Tzbob/scala-js-2-js-scala.git
     cd scala-js-2-js-scala
-    git checkout gpce15
+    git checkout master
     sbt test
 
 ## Technical Details
@@ -114,7 +114,7 @@ A small implementation for JS-Scala is given:
 
 ### Scala-Virtualized and Macro Annotations
 
-This project targets Scala 2.10.2 Virtualized.
+This project targets Scala 2.11.2 Virtualized.
 We use [Macro Annotations](http://docs.scala-lang.org/overviews/macros/annotations.html) which are added by the Scala Macroparadise compiler plugin.
 However, the combination of both is not supported.
 Adding the macro paradise plugin breaks the ```SourceContext``` injection by Scala-Virtualized which is why the generated interfaces all explicitly require the ```SourceContext``` at their call-site.
